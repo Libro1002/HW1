@@ -1,0 +1,183 @@
+---
+title: "HW2 STA521"
+author: '[Jinghan Luo, jl912, Libro1002]'
+date: "Due September 14, 2019 5pm"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+## Background Reading
+
+Readings: Chapters 3-4, 8-9 and Appendix in Weisberg [Applied Linear Regression](https://ebookcentral.proquest.com/lib/duke/reader.action?docID=1574352)  
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Exploratory Data Analysis
+
+```{r data,include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(alr3)
+data(UN3, package="alr3")
+help(UN3) 
+library(car)
+library(xtable)
+```
+
+
+1. Create a summary of the data.  How many variables have missing data?  Which are quantitative and which are qualtitative?
+
+```{r}
+summary(UN3)
+colSums(is.na(UN3))
+str(UN3)
+help(UN3)
+```
+Answer: 6 variables have missing data, except Purhan. All of the variables are quatitative
+
+2. Investigate the predictors graphically, using scatterplots or other tools of your choice. Create some plots
+highlighting the relationships among the predictors. Comment
+on your findings regarding trying to predict `ModernC` from the other variables.  Are there potential outliers, nonlinear relationships or transformations that appear to be needed based on your graphical EDA?
+
+```{r}
+library(car)
+scatterplotMatrix(UN3,main='Scatter Plot Matrix')
+```
+Answer: The graph illustates ModernC can be linearly predicted by Change(negatively correlated), Fertility(negatively correlated) and Purban(positively correlated). Potential outliers: The Pop has outliers with all other variances. So there exists outliers in Pop itself. Another apparent outlier exists in graph between PPgdp and Purdan. Nonlinear relationships maybe need to be transformed: The relationship between PPgdp and Fertility, The relationship between PPgdp and Purban. Because it is obvious that there are some nonlinear relationship between them.
+## Model Fitting
+
+3.  Use the `lm()` function to perform a multiple linear regression with `ModernC` as the response and all other variables as the predictors, using the formula `ModernC ~ .`, where the `.` includes all remaining variables in the dataframe.  Create  diagnostic residual plot from the linear model object and comment on results regarding assumptions.  How many observations are used in your model fitting?
+
+```{r}
+fit <-lm(ModernC~.,UN3)
+summary(fit)
+par(mfrow=c(2,2))
+plot(fit)
+nobs(fit)
+```
+Answer: Residuals vs Fitted: Nonconstant variance on horizontal axis. Right-open megaphone. So the mean function is wrong. The asumption that variance are equal is wrong. Normal Q-Q: Problem with heavy tail. The assumption that residual are in normal distribution is wrong. Scale-Location: The same as Residuals vs Fitted. Residuals vs Leverage: China and India has high leverages. That means those two predictors' values are unusual. 125 observations are used in my model fitting. Finally, one thing to notice is that the final model-the predictors are different. It show in Question7. I don't know where to put the fit model, so please jump to Question7 if it is necessarily to show in this question.
+
+4. Examine added variable plots `car::avPlot` or `car::avPlots`  for your model above. Are there any plots that suggest that transformations are needed for any of the terms in the model? Describe. Is it likely that any of the localities are influential for any of the terms?  Which localities?  Which terms?  
+
+```{r}
+car::avPlots(fit)
+```
+
+Answer: For the Pop|others graph, it is needed transformation because the samples in Pop did't distribute normally. From the following 6 graphs, find out which plots maybe potentially change the coefficient of the model, that is influential cases. They are: Kuwait, Islands, Poland, Azerbaijian, Switzerland, Norways, Yemen, Philan, India, China, Thailand, Nigero. And the Azerbaijianis the most influential one, it has influence on all of the coefficience of predictor.
+
+5.  Using the multivariate BoxCox `car::powerTransform`  find appropriate transformations of the response and predictor variables  for  the linear model.  If any predictors are negative, you may need to transform so that they are non-negative.  Summarize the resulting transformations.
+
+
+```{r}
+UN3.1 <- UN3
+UN3.1$Change <- exp(UN3$Change)
+summary(car::powerTransform(UN3.1[,1:7]))
+trans <-lm(ModernC~ log(Change)+log(PPgdp)+Frate+log(Pop)+log(Fertility)+Purban, UN3.1)
+inverseResponsePlot(trans)
+```
+
+Answer: This means we need to transform the predictor according to Est Power for each predictor. We need to find meaningful transformation for lambda, so I choose approximate lambda integer to form log or just 1. There is nearly no difference between lambda = 0.92 and lambda = 1 based on the inverseResponsePlot. So the response don't need to be transformed. Finally, one thing to notice is that the final model-the predictors are different. It show in Question7. I don't know where to put the fit model, so please jump to Question7 if it is necessarily to show in this question.
+
+6. Given the selected transformations of the predictors, verify the transformation of the response using `MASS::boxcox` or `car::boxCox` and justify.  Do you get the same transformation if you used `car::powerTransform` above? Do you get the same transformation for the response if you do not transform any of the predictors?  Discuss briefly the findings.
+
+
+```{r}
+car::boxCox(trans)
+```
+
+Answer:
+The result is the same. The value 1 is located in 95% confidence interval for the estimate of response. So we don't need to transform ModernC.
+
+7.  Fit the regression using the transformed variables.  Provide residual plots and added variables plots and comment.  If you feel that you need additional transformations of either the response or predictors, repeat any steps until you feel satisfied with the model and residuals.
+
+```{r}
+summary(trans)
+library(GGally)
+par(mfrow=c(2,2))
+fit <- lm(ModernC ~ log(PPgdp)+Frate+log(Pop)+log(Fertility), UN3.1)
+vif(fit)
+sqrt(vif(fit))>2
+summary(fit)
+plot(fit)
+car::avPlots(fit)
+```
+
+Answer: From the summary of Trans, we should focus on each predictor's Pr(>|t|). When it is too large, usually than 0.05, it means that predictor is not significant. So I discard log(Change) and Purban in the model. And then form the next model-fix. It looks like ok with Pr(>|t|). There is no multicollinearity problem there. No predictors need to be deleted anymore. So the model in this question is $$ModernC=-19.46+6.63log(PPgdp)+0.16Frate+1.77log(Pop)-13.62log(Fertility)$$ Most of plots are on diagonal on Normal Q-Q. But there still exist heavy tail in the right top corner. This could be solved by remove outliers and influence points. The residual plots in other 3 graphs are all distributed evenly, remain the equal variance in x axis. This indicates now the model is suitable for values in UN3.1. Compared with the Added-Variable Plots in question 4, we can see that the graph about ModernC and log(Pop) is different. The plots distributed evenly on x axis, due to transformation from Pop to log(Pop). Also, plots above mean the model don't need other transformation steps. However, there are infuential plots and outliers inside, we can tell from the noticed plots on residual graph.
+
+8.  Are there any outliers or influential points in the data?  Explain.  If so, refit the model after removing any outliers/influential points and comment on residual plots.
+
+
+```{r}
+outlierTest(fit)
+which(cooks.distance(fit)>1 %in% TRUE)
+```
+
+Answer: We can tell from the outlier test result, that Bonferroni p value=0.42>0.05, so no outliers exist. We can tell from the cook distance test result, that no influence points exist. As a result, the model fit_two doesn't need to be changed.
+
+## Summary of Results
+
+9. For your final model, provide summaries of coefficients with 95% confidence intervals in a nice table with interpretations of each coefficient.  These should be in terms of the original units! 
+
+```{r,results='asis'}
+table1 <- summary(fit)$coef
+table2 <- confint(fit)
+table3 <- cbind(table1, table2)
+print(xtable(table3),type="latex",comment = getOption("xtable.comment", FALSE))
+```
+
+Answer:
+To express in the original units about how the ModernC relavant to predictors, we make following assumptions(other predictors stay the same):
+(1)PPgdp doubled: In this case, the ModernC will change 6.63log(2)=4.6, that is an increase of 4.6% of unmarried women using a modern method of contraception.
+(2)Pop doubled: In this case, the ModernC will change 1.77log(2)=1.22, that is an increase of 12% of unmarried women using a modern method of contraception.
+(3)Fertility doubled: In this case, the ModernC will change 13.62log(2)=9.44, that is a decrease of 9.44% of unmarried women using a modern method of contraception.
+(4)Frate doubled: In this case, the ModernC will increase another 0.16percent of the original Frate 
+
+10.Provide a paragraph summarizing your final model  and findings suitable for the US envoy to the UN after adjusting for outliers or influential points.   You should provide a justification for any case deletions in your final model.
+
+
+```{r}
+
+```
+
+Answer:
+    The final model is ModernC=-19.46+6.63log(PPgdp)+0.16Frate+1.77log(Pop)-13.62log(Fertility).This indicates Percent of unmarried women using a modern method of contraception relevant to Per capita 2001 GDP and Populations in a positive logistic method, relevant to Fertility in a negative logistic method, relevant to Percent of females over age 15 economically active linearly. When GDP and population increase, the ModernC will increase far behind them in original units.When Expected number of live births per female, 2000 increase, the ModernC will dncrease far behind them in original units. And for females over age 15 economically active, the ModernC will remain the same step as the predictor. The growth of economic and population maybe illustrate a enhancement of female sexual self-protection consciousness. When many babies were born, there is a risk that female lack of sexual self-protection consciousness happen in US. So those can help UN develop issue about female sexual self-protection consciousness.
+
+## Methodology
+
+    
+
+11. Exercise 9.12 from ALR
+
+Using  $X^TX = X^T_{(i)}X_{(i)} + x_i x_i^T$ where the subscript $(i)$ means without the ith case, show that 
+
+$$
+( X^T_{(i)}X_{(i)})^{-1} = (X^TX)^{-1} + \frac{(X^TX)^{-1}x_ix_i^T  (X^TX)^{-1}}{1 - h_{ii}}
+$$
+
+where $h_{ii}$ is the $i$th diagonal element of $H = X(X^TX)^{-1}X^T$ using direct multiplication and simplify in terms of_ $h_{ii}$.
+
+$$( X^T_{(i)}X_{(i)})((X^TX)^{-1} + \frac{(X^TX)^{-1}x_ix_i^T  (X^TX)^{-1}}{1 - h_{ii}})$$
+$$=(X^TX-x_i x_i^T)((X^TX)^{-1} + \frac{(X^TX)^{-1}x_ix_i^T(X^TX)^{-1}}{1 - h_{ii}})$$
+$$=I-x_ix_i^T(X^TX)^{-1}+\frac{x_ix_i^T(X^TX)^{-1}}{1 - h_{ii}}-\frac{x_i [x_i^T(X^TX)^{-1}x_i]x_i^T(X^TX)^{-1}}{1 - h_{ii}}$$
+$$=I-\frac{(1 - h_{ii})x_ix_i^T(X^TX)^{-1}}{1 - h_{ii}}+\frac{x_ix_i^T(X^TX)^{-1}}{1 - h_{ii}}-\frac{x_ih_{ii}x_i^T(X^TX)^{-1}}{1 - h_{ii}}$$
+$$=I+\frac{(-(1-h_{ii})+1-h_{ii})x_ix_i^T(X^TX)^{-1}}{1 - h_{ii}}$$
+$$=I$$
+Therefore,
+$$( X^T_{(i)}X_{(i)})^{-1} = (X^TX)^{-1} + \frac{(X^TX)^{-1}x_ix_i^T  (X^TX)^{-1}}{1 - h_{ii}}$$
+12. Exercise 9.13 from ALR.   Using the above, show
+
+$$\hat{\beta}_{(i)} = \hat{\beta} -  \frac{(X^TX)^{-1}x_i e_i}{1 - h_{ii}}$$
+$$=( X^T_{(i)}X_{(i)})^{-1}X^T_{(i)}Y_{(i)}$$
+$$=((X^TX)^{-1} + \frac{(X^TX)^{-1}x_ix_i^T(X^TX)^{-1}}{1 - h_{ii}})(X^TY-x_{i}y_{i})$$
+$$=(X^TX)^{-1}X^TY+\frac{(X^TX)^{-1}x_ix_i^T(X^TX)^{-1}X^TY}{1 - h_{ii}}-(X^TX)^{-1}x_{i}y_{i}-\frac{(X^TX)^{-1}x_ix_i^T(X^TX)^{-1}x_{i}y_{i}}{1 - h_{ii}}$$
+$$=\hat{\beta}+\frac{(X^TX)^{-1}x_ix_i^T(X^TX)^{-1}X^TY-(1 - h_{ii})(X^TX)^{-1}x_{i}y_{i}-(X^TX)^{-1}x_ih_{ii}y_{i}}{1 - h_{ii}}$$
+$$=\hat{\beta}+\frac{(X^TX)^{-1}x_ix_i^TX^{-1}Y+(X^TX)^{-1}x_iy_ih_{ii}-(X^TX)^{-1}x_iy_i-h_{ii}(X^TX)^{-1}x_iy_i}{1 - h_{ii}}$$
+$$=\hat{\beta}+\frac{(X^TX)^{-1}x_ix_i^TX^{-1}X\hat{\beta}-(X^TX)^{-1}x_iy_i}{1 - h_{ii}}$$
+$$=\hat{\beta}+\frac{(X^TX)^{-1}x_i\hat{y}_i-(X^TX)^{-1}x_iy_i}{1 - h_{ii}}$$
+$$=\hat{\beta} -\frac{(X^TX)^{-1}x_i e_i}{1 - h_{ii}}$$
+
+13. (optional)  Prove that the intercept in the added variable scatter plot will always be zero.  _Hint:  use the fact that if $H$ is the projection matrix for $X$ which contains a column of ones, then $1_n^T (I - H) = 0$ or $(I - H) 1_n = 0$.  Use this to show that the sample mean of residuals will always be zero if there is an intercept._
